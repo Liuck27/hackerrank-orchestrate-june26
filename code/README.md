@@ -39,8 +39,12 @@ server with a vision-capable model loaded (default expected at `http://127.0.0.1
   Stage-A observations with the transcript, history, and evidence requirements to produce the
   final decision. More calls (proportional to image count), decouples visual grounding from
   reasoning.
+- **`rule_based`** — reuses `two_stage`'s Stage A, then replaces Stage B's LLM-judged verdict with
+  a deterministic Python rule (see [below](#a-third-strategy-rule_based-and-two-reverted-redesign-attempts)).
+  Lowest accuracy of the three on the sample set; kept as a documented comparison point, not the
+  candidate.
 
-Both live under `code/strategies/` and share `code/common/`: schema, CSV/image loading, a
+All three live under `code/strategies/` and share `code/common/`: schema, CSV/image loading, a
 backend-agnostic content representation (`common/llm_client.py`), the Gemini client (retry/backoff
 + RPM cap), the LM Studio client, and a usage tracker. Strategies are written once against `str`
 and `ImagePart` content parts and work unchanged against either backend.
@@ -97,9 +101,34 @@ python main.py --predictions single_call=predictions/single_call.csv \
 ## Final strategy used for `output.csv`
 
 **`single_call` via the `lmstudio` backend** (model `google/gemma-4-e4b:2`). On the full 20-row
-sample set, `single_call` beats `two_stage` on `claim_status` accuracy (90% vs 80%) with fewer
-than half the model calls and roughly 25% less runtime — see `evaluation/evaluation_report.md`
-for the full comparison and operational analysis.
+sample set, `single_call` beats both `two_stage` (80%) and `rule_based` (70%) on `claim_status`
+accuracy (90%), with fewer than half the model calls and roughly 25% less runtime than `two_stage`
+— see `evaluation/evaluation_report.md` for the full comparison and operational analysis.
+
+### A third strategy (`rule_based`) and two reverted redesign attempts
+
+`strategies/rule_based.py` reuses `two_stage`'s claim-aware Stage A vision extraction, but replaces
+Stage B's LLM-judged verdict with a fixed Python rule: `claim_status` is decided only from
+object/part match (`shows_claimed_object`/`shows_claimed_part`) and a *severity-tier* gap between
+the customer's wording and the visible damage — `issue_type` is never compared (an honest
+vocabulary mismatch, e.g. customer says "dent" when it's actually a scratch, is not evidence of a
+false claim; only a real severity or object/part gap is). It scored 70% `claim_status` accuracy —
+worse than `single_call` and `two_stage` — so it is not the candidate, but it's kept as the
+project's third documented strategy/comparison point, including the negative result.
+
+Two further redesigns were attempted and reverted after evaluation showed regressions (both
+verified end-to-end on the full sample set before being rolled back, not assumed):
+- **Prompt-only fix for `issue_type`/`severity`** (explicit "use `none`/`unknown` when no damage is
+  visible" rules added to both strategies' prompts): regressed `claim_status` 90%→85%
+  (`single_call`) and 80%→65% (`two_stage`) — the model over-applied `contradicted`/`none` even on
+  previously-correct `supported` rows.
+- **Decontaminating Stage A** (removing `claim_object`/transcript from the per-image vision call so
+  `shows_claimed_object`/`shows_claimed_part` would be computed deterministically in Python instead
+  of self-reported by a claim-aware vision call): regressed `claim_status` 80%→55% (`two_stage`) and
+  70%→45% (`rule_based`), and `object_part` accuracy collapsed 75-80%→35-40%. Diagnosis: this local
+  4B model needs the claim context to disambiguate ambiguous, cropped damage photos; removing it
+  hurt raw classification accuracy more than the narrative-anchoring risk it was meant to avoid.
+  Stage A stays claim-aware as a result.
 
 The Gemini cloud backend was the original design (see `common/gemini_client.py`, still fully
 implemented and usable), but its free tier's 20-requests/day/model quota was exhausted during

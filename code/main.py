@@ -19,11 +19,12 @@ from common.data_io import REPO_ROOT, ClaimRow, load_claims, load_evidence_requi
 from common.gemini_client import GeminiClient
 from common.lmstudio_client import LMStudioClient
 from common.usage_tracker import UsageTracker
-from strategies import single_call, two_stage
+from strategies import rule_based, single_call, two_stage
 
 STRATEGIES = {
     "single_call": single_call.run,
     "two_stage": two_stage.run,
+    "rule_based": rule_based.run,
 }
 
 
