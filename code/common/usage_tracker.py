@@ -15,14 +15,18 @@ class UsageTracker:
     call_count: int = 0
     prompt_tokens: int = 0
     output_tokens: int = 0
+    reasoning_tokens: int = 0
     images_processed: int = 0
     start_time: float = field(default_factory=time.monotonic)
     end_time: float | None = None
 
-    def record_call(self, prompt_tokens: int, output_tokens: int, num_images: int = 0) -> None:
+    def record_call(
+        self, prompt_tokens: int, output_tokens: int, num_images: int = 0, reasoning_tokens: int = 0
+    ) -> None:
         self.call_count += 1
         self.prompt_tokens += prompt_tokens
         self.output_tokens += output_tokens
+        self.reasoning_tokens += reasoning_tokens
         self.images_processed += num_images
 
     def finish(self) -> None:
@@ -35,7 +39,11 @@ class UsageTracker:
             "model": self.model,
             "model_calls": self.call_count,
             "prompt_tokens": self.prompt_tokens,
+            # output_tokens includes reasoning_tokens (the model's "thinking" tokens are
+            # billed/counted as completion tokens by the API); reasoning_tokens is broken
+            # out separately so the answer-only vs thinking-overhead split is visible.
             "output_tokens": self.output_tokens,
+            "reasoning_tokens": self.reasoning_tokens,
             "total_tokens": self.prompt_tokens + self.output_tokens,
             "images_processed": self.images_processed,
             "runtime_seconds": round(runtime_seconds, 2),

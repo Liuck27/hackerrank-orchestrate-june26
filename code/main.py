@@ -36,6 +36,7 @@ def process_row(
     tracker: UsageTracker,
 ) -> dict:
     decision = strategy_fn(row, client, history, requirements, tracker)
+    decision = decision.enforce_injection_policy()
     return decision.to_output_row(row.user_id, row.image_paths, row.user_claim, row.claim_object)
 
 

@@ -36,6 +36,9 @@ _SCALAR_FIELDS = {
     "image_id",
     "image_quality_ok",
     "shows_claimed_object",
+    "shows_claimed_part",
+    "embedded_text_or_instructions",
+    "visible_severity",
     "observation_notes",
 }
 
@@ -144,10 +147,13 @@ class LMStudioClient:
                 parsed_json = _unwrap_singleton_lists(_extract_json(raw_text))
                 parsed = _validate_with_unknown_fallback(response_schema, parsed_json)
                 usage = response.usage
+                completion_details = getattr(usage, "completion_tokens_details", None)
+                reasoning_tokens = getattr(completion_details, "reasoning_tokens", 0) or 0
                 return GenerateResult(
                     parsed=parsed,
                     prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
                     output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+                    reasoning_tokens=reasoning_tokens,
                 )
             except Exception as exc:  # noqa: BLE001 - retry on parse/validation/connection errors
                 last_error = exc

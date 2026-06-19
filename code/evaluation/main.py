@@ -87,7 +87,7 @@ def render_report(strategy_results: dict[str, dict], full_claims_row_count: int)
     lines.append("## Operational analysis (sample set, then projected to full claims.csv)")
     lines.append("")
     lines.append(
-        "| Strategy | Model calls | Prompt tokens | Output tokens | Images processed | "
+        "| Strategy | Model calls | Prompt tokens | Output tokens (of which reasoning) | Images processed | "
         "Runtime (s) | Est. cost (sample) | Est. cost (full claims.csv) |"
     )
     lines.append("|---|---|---|---|---|---|---|---|")
@@ -100,8 +100,10 @@ def render_report(strategy_results: dict[str, dict], full_claims_row_count: int)
         scale = full_claims_row_count / sample_rows if sample_rows else 0
         sample_cost = estimate_cost(usage)
         projected_cost = round(sample_cost * scale, 4)
+        reasoning_tokens = usage.get("reasoning_tokens", 0)
         lines.append(
-            f"| {name} | {usage['model_calls']} | {usage['prompt_tokens']} | {usage['output_tokens']} | "
+            f"| {name} | {usage['model_calls']} | {usage['prompt_tokens']} | "
+            f"{usage['output_tokens']} ({reasoning_tokens}) | "
             f"{usage['images_processed']} | {usage['runtime_seconds']} | ${sample_cost} | ${projected_cost} |"
         )
     lines.append("")
@@ -118,6 +120,14 @@ def render_report(strategy_results: dict[str, dict], full_claims_row_count: int)
         "and `--workers` controls concurrency. Two-stage issues one extra Gemini call per image "
         "(Stage A) plus one aggregation call (Stage B), so its call count scales with image count "
         "rather than staying flat at one call per claim."
+    )
+    lines.append(
+        "Reasoning-token note: the local model (Gemma) emits a separate chain-of-thought in "
+        "`message.reasoning_content`, which the client never parses for the final JSON answer "
+        "(only `message.content` is parsed), so accuracy is unaffected. However the API's "
+        "`completion_tokens` figure bundles reasoning tokens together with answer tokens; the "
+        "'Output tokens (of which reasoning)' column above breaks out how much of each call's "
+        "output was thinking overhead versus the actual structured answer."
     )
     return "\n".join(lines)
 

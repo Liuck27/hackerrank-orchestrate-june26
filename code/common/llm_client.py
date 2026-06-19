@@ -25,3 +25,4 @@ class GenerateResult:
     parsed: BaseModel
     prompt_tokens: int
     output_tokens: int
+    reasoning_tokens: int = 0
